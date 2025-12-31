@@ -1,8 +1,6 @@
 import { getUser } from "../components/actions";
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { getProfile, updateProfile } from "./actions";
-import { Profile } from "@/lib/supabase/types/profile";
+import { getProfile } from "./actions";
 import MyProfile from "./MyProfile";
 
 export default async function ProfilePage() {

@@ -1,11 +1,11 @@
 "use client";
-import { Profile } from "@/lib/supabase/types/profile";
+import { Profile } from "@/lib/supabase/types";
 import { useState } from "react";
 import { getProfile, updateProfile } from "./actions";
 import Link from "next/link";
 
 type User = {
-  email: string;
+  email?: string;
   id: string;
 };
 
@@ -24,7 +24,7 @@ export default function MyProfile({
   return (
     <>
       <h1 className="text-2xl font-bold">My Profile</h1>
-      <p className="text-lg">Email: {user.email}</p>
+      <p className="text-lg">Email: {user.email ?? "No email"}</p>
       <p className="text-lg">Username: {previousUsername ?? "No username"}</p>
       <form
         action={async (fd: FormData) => {
