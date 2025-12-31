@@ -7,7 +7,7 @@ export type ContextResult = {
   errorMsg: string | null;
 };
 
-export async function getContexts(): Promise<ContextResult | null> {
+export async function getContexts(): Promise<ContextResult> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -16,14 +16,13 @@ export async function getContexts(): Promise<ContextResult | null> {
   const { data, error } = await supabase
     .from("context")
     .select("*")
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false });
   if (error) return { contexts: null, errorMsg: error.message };
   return { contexts: data, errorMsg: null };
 }
 
-export async function createContext(
-  context: Context
-): Promise<ContextResult | null> {
+export async function createContext(context: Context): Promise<ContextResult> {
   const supabase = await createClient();
   const {
     data: { user },

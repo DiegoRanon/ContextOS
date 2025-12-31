@@ -33,6 +33,6 @@ export async function login(formData: {
 
   if (error) return { ok: false, message: friendlyAuthMessage(error.message) };
 
-  redirect("/");
+  redirect("/dashboard");
   return { ok: true };
 }
