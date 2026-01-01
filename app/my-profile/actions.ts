@@ -1,6 +1,6 @@
 "use server";
 import { createClient } from "@/lib/supabase/server";
-import { Profile } from "@/lib/supabase/types/profile";
+import { Profile } from "@/lib/supabase/types";
 
 export type ProfileResult =
   | { ok: true; profile: Profile }

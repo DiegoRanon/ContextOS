@@ -1,6 +1,7 @@
 "use server";
 import { createClient } from "@/lib/supabase/server";
 import { Context } from "@/lib/supabase/types";
+import { redirect } from "next/navigation";
 
 export type ContextResult = {
   context: Context | null;
@@ -19,5 +20,7 @@ export async function createContext(context: Context): Promise<ContextResult> {
     .select()
     .single();
   if (error) return { context: null, errorMsg: error.message };
+
+  redirect(`/context/${newContext.id}`);
   return { context: newContext, errorMsg: null };
 }
