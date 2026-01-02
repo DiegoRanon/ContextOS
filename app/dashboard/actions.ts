@@ -1,6 +1,7 @@
 "use server";
 import { createClient } from "@/lib/supabase/server";
 import { Context } from "@/lib/supabase/types";
+import { revalidatePath } from "next/cache";
 
 export type ContextResult = {
   contexts: Context[] | null;
@@ -19,5 +20,21 @@ export async function getContexts(): Promise<ContextResult> {
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
   if (error) return { contexts: null, errorMsg: error.message };
+  return { contexts: data, errorMsg: null };
+}
+
+export async function deleteContext(id: bigint): Promise<ContextResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user?.id) return { contexts: null, errorMsg: "Unauthorized" };
+  const { data, error } = await supabase
+    .from("context")
+    .delete()
+    .eq("user_id", user.id)
+    .eq("id", id);
+  if (error) return { contexts: null, errorMsg: error.message };
+  revalidatePath("/dashboard");
   return { contexts: data, errorMsg: null };
 }
