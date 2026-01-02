@@ -1,6 +1,7 @@
 "use server";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 
 export type AuthResult = { ok: true } | { ok: false; message: string };
 
@@ -22,11 +23,16 @@ export async function register(formData: {
   const supabase = await createClient();
   const { email, password } = formData;
 
+  const origin =
+    (await headers()).get("origin") ??
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    "http://localhost:3000";
+
   const { error } = await supabase.auth.signUp({
     email: email,
     password: password,
     options: {
-      emailRedirectTo: "http://localhost:3000/login",
+      emailRedirectTo: new URL("/login", origin).toString(),
     },
   });
 

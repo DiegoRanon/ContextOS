@@ -34,3 +34,25 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Vercel + Supabase setup (required)
+
+### Environment variables
+
+Create these environment variables in your Vercel Project Settings → Environment Variables (for Production + Preview):
+
+- **NEXT_PUBLIC_SUPABASE_URL**: Your Supabase project URL
+- **NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY**: Your Supabase anon/publishable key
+- **NEXT_PUBLIC_SITE_URL** (recommended): Your canonical public URL (e.g. `https://your-project.vercel.app`)
+
+There’s also a template file you can copy locally: `env.example`.
+
+### Supabase Auth redirect URLs
+
+In Supabase Dashboard → Authentication → URL Configuration:
+
+- **Site URL**: set to your production domain (e.g. `https://your-project.vercel.app`)
+- **Redirect URLs**: allow at least:
+  - `https://your-project.vercel.app/login`
+  - (optional) your Preview domains if you need email confirmation to work on previews
+
