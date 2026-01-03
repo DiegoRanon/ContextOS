@@ -1,58 +1,135 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## contextOS — Demo-ready Next.js + Supabase App
 
-## Getting Started
+**contextOS** is a small, production-style web app that demonstrates modern authentication, secure server-side data access, and a simple productivity domain: **Contexts** (projects/areas of focus) and **Sessions** (time-tracked work blocks with notes).
 
-First, run the development server:
+This README is written as a **professional demo presentation** for recruiters and hiring managers: what the app does, how it behaves, and how to walk through it quickly.
+
+## Product pitch (what you can evaluate fast)
+
+- **Authentication**: register, login, change password, view profile (Supabase Auth)
+- **CRUD domain model**: create contexts, create sessions inside a context
+- **Real-time-ish tracking**: update session duration while working
+- **Modern stack choices**: App Router, Server Actions + Route Handlers, SSR-safe Supabase helpers, TypeScript, Tailwind
+
+## Demo flow (3–5 minutes)
+
+Use this as a live walkthrough script:
+
+1. **Landing → Auth**
+   - Go to `/register`, create a user, then `/login`.
+2. **Profile sanity check**
+   - Visit `/my-profile` to confirm the authenticated user identity.
+3. **Create a context**
+   - Go to `/create-context`, create a context (think “Project: Mobile App”, “Focus: Interview Prep”).
+4. **Dashboard overview**
+   - Visit `/dashboard` to show the list of contexts and navigation.
+5. **Create a session inside a context**
+   - Open a specific context at `/context/[id]`.
+   - Create a session via `/session/create?contextId=...`.
+6. **Track a session**
+   - Open `/session/[id]` and demonstrate duration tracking + notes.
+   - Explain that duration updates are persisted through `POST /api/session/[id]/duration` for the logged-in user.
+7. **Security checkpoint**
+   - Log out (or switch accounts) and verify the app respects authenticated access patterns.
+
+## Current features (implemented)
+
+- **Auth**
+  - **Register**: create an account (`/register`)
+  - **Login**: sign in (`/login`)
+  - **Change password**: update credentials (`/change-password`)
+  - **My profile**: view logged-in identity (`/my-profile`)
+- **Contexts**
+  - **Dashboard**: list contexts (`/dashboard`)
+  - **Create context**: add a new context (`/create-context`)
+  - **Context details**: open a context by id (`/context/[id]`)
+- **Sessions**
+  - **Create session**: create a session under a context (`/session/create?contextId=...`)
+  - **Session details**: view session, notes, duration (`/session/[id]`)
+  - **Duration updates API**: route handler to persist duration (`POST /api/session/[id]/duration`)
+
+## Architecture (what’s interesting technically)
+
+- **Next.js App Router**: server-rendered pages + colocated route handlers.
+- **Server Actions**: used for mutations from UI to server with minimal client boilerplate.
+- **Supabase Auth + SSR**: authentication and session handling via `@supabase/ssr` utilities for server-safe access.
+- **TypeScript everywhere**: predictable data shapes and safer refactors.
+- **Tailwind CSS v4**: consistent UI styling with reusable UI primitives under `app/components/ui/`.
+
+## Tech stack
+
+- **Next.js 16** (App Router) + **React 19**
+- **Supabase Auth** + **@supabase/ssr**
+- **Tailwind CSS v4**
+- **TypeScript**
+
+## Key routes (for reviewers)
+
+- **Auth**
+  - `/register`
+  - `/login`
+  - `/change-password`
+  - `/my-profile`
+- **App**
+  - `/dashboard` (list contexts)
+  - `/create-context`
+  - `/context/[id]`
+  - `/session/create?contextId=...`
+  - `/session/[id]`
+- **API**
+  - `POST /api/session/[id]/duration` (updates a session’s duration for the logged-in user)
+
+## Local setup (for a quick evaluation)
+
+### Requirements
+
+- **Node.js**: `>= 20` (see `package.json`)
+- **npm** (recommended)
+
+### Quick start (local)
+
+1. Install dependencies
+
+```bash
+npm install
+```
+
+2. Create your env file
+
+```bash
+copy env.example .env.local
+```
+
+Fill in:
+
+- **NEXT_PUBLIC_SUPABASE_URL**
+- **NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY**
+- **NEXT_PUBLIC_SITE_URL** (optional but recommended)
+
+3. Run the dev server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+App will be available at `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run dev     # start dev server
+npm run build   # production build
+npm run start   # start production server (after build)
+npm run lint    # eslint
+```
 
-## Learn More
+## Project structure (high level)
 
-To learn more about Next.js, take a look at the following resources:
+- `app/`: pages, server actions, and route handlers
+- `lib/supabase/`: Supabase client helpers (`server.ts`, `client.ts`, `proxy.ts`) and shared types
+- `app/components/`: shared UI components
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Author
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-
-## Vercel + Supabase setup (required)
-
-### Environment variables
-
-Create these environment variables in your Vercel Project Settings → Environment Variables (for Production + Preview):
-
-- **NEXT_PUBLIC_SUPABASE_URL**: Your Supabase project URL
-- **NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY**: Your Supabase anon/publishable key
-- **NEXT_PUBLIC_SITE_URL** (recommended): Your canonical public URL (e.g. `https://your-project.vercel.app`)
-
-There’s also a template file you can copy locally: `env.example`.
-
-### Supabase Auth redirect URLs
-
-In Supabase Dashboard → Authentication → URL Configuration:
-
-- **Site URL**: set to your production domain (e.g. `https://your-project.vercel.app`)
-- **Redirect URLs**: allow at least:
-  - `https://your-project.vercel.app/login`
-  - (optional) your Preview domains if you need email confirmation to work on previews
-
+**Diego Ranon**
+LinkedIn: [diego-ranon-986b0120a](https://www.linkedin.com/in/diego-ranon-986b0120a/)
