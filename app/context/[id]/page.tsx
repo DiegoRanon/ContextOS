@@ -1,4 +1,4 @@
-import { getContext } from "./actions";
+import { getContext, getContextSessions } from "./actions";
 import Link from "next/link";
 import Badge from "@/app/components/ui/Badge";
 
@@ -9,6 +9,16 @@ export default async function ContextPage({
 }) {
   const { id } = await params;
   const { context, errorMsg } = await getContext(id);
+
+  const formatDuration = (seconds: number) => {
+    const s = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
+    const hours = Math.floor(s / 3600);
+    const minutes = Math.floor((s % 3600) / 60);
+    const secs = s % 60;
+    if (hours > 0) return `${hours}h ${String(minutes).padStart(2, "0")}m`;
+    if (minutes > 0) return `${minutes}m ${String(secs).padStart(2, "0")}s`;
+    return `${secs}s`;
+  };
 
   if (errorMsg) {
     return (
@@ -81,6 +91,11 @@ export default async function ContextPage({
     );
   }
 
+  const sessionsResult = context.id
+    ? await getContextSessions(context.id)
+    : await getContextSessions(id);
+  const sessions = sessionsResult.sessions ?? [];
+
   return (
     <div className="min-h-screen bg-background pt-24 pb-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-5xl mx-auto">
@@ -107,7 +122,7 @@ export default async function ContextPage({
           </Link>
 
           <div className="flex items-start gap-4 mb-4">
-            <div className="w-16 h-16 rounded-xl bg-linear-to-br from-primary to-accent flex items-center justify-center flex-shrink-0 shadow-lg">
+            <div className="w-16 h-16 rounded-xl bg-linear-to-br from-primary to-accent flex items-center justify-center shrink-0 shadow-lg">
               <svg
                 className="w-8 h-8 text-white"
                 fill="none"
@@ -220,27 +235,89 @@ export default async function ContextPage({
               <h2 className="text-xl font-semibold text-foreground mb-4">
                 Recent Sessions
               </h2>
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <div className="w-16 h-16 rounded-full bg-surface-secondary flex items-center justify-center mb-4">
-                  <svg
-                    className="w-8 h-8 text-foreground-muted"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
+              {sessionsResult.errorMsg ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <div className="w-16 h-16 rounded-full bg-error-light flex items-center justify-center mb-4">
+                    <svg
+                      className="w-8 h-8 text-error"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                  </div>
+                  <p className="text-foreground-secondary">
+                    {sessionsResult.errorMsg}
+                  </p>
                 </div>
-                <p className="text-foreground-secondary">
-                  No sessions yet. Start your first session to begin tracking
-                  your work.
-                </p>
-              </div>
+              ) : sessions.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <div className="w-16 h-16 rounded-full bg-surface-secondary flex items-center justify-center mb-4">
+                    <svg
+                      className="w-8 h-8 text-foreground-muted"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0 0z"
+                      />
+                    </svg>
+                  </div>
+                  <p className="text-foreground-secondary">
+                    No sessions yet. Start your first session to begin tracking
+                    your work.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {sessions.map((s, idx) => {
+                    const updatedLabel = s.updated_at
+                      ? new Date(s.updated_at).toLocaleString()
+                      : "Unknown";
+                    const title =
+                      s.intention && s.intention.trim().length > 0
+                        ? s.intention
+                        : `Session #${sessions.length - idx}`;
+
+                    return (
+                      <Link
+                        key={s.id}
+                        href={`/session/${s.id}`}
+                        className="block rounded-xl border border-border hover:border-border-hover hover:bg-surface-secondary transition-all duration-200 p-4"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="font-semibold text-foreground truncate">
+                                {title}
+                              </h3>
+                            </div>
+                            <p className="text-sm text-foreground-secondary truncate">
+                              {s.notes && s.notes.trim().length > 0
+                                ? s.notes.replace(/\s+/g, " ").trim()
+                                : "No notes yet."}
+                            </p>
+                          </div>
+                          <div className="flex flex-col items-end gap-1 text-xs text-foreground-muted shrink-0">
+                            <span>{formatDuration(s.duration ?? 0)}</span>
+                            <span>Updated {updatedLabel}</span>
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 

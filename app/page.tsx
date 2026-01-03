@@ -98,7 +98,7 @@ export default async function Home() {
               </h3>
               <p className="text-foreground-secondary leading-relaxed">
                 Organize your work into contexts instead of endless task lists.
-                Know exactly what you're working on.
+                Know exactly what you&apos;re working on.
               </p>
             </div>
 
@@ -162,29 +162,6 @@ export default async function Home() {
           </div>
         </div>
       </section>
-
-      {/* CTA Section */}
-      {!user && (
-        <section className="py-20 px-4 sm:px-6 lg:px-8">
-          <div className="max-w-4xl mx-auto text-center">
-            <div className="gradient-border p-12 animate-fadeIn">
-              <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-                Ready to focus better?
-              </h2>
-              <p className="text-lg text-foreground-secondary mb-8 max-w-2xl mx-auto">
-                Join today and start building better work habits with your
-                personal thinking assistant.
-              </p>
-              <Link
-                href="/register"
-                className="inline-block px-8 py-4 rounded-lg bg-primary text-white hover:bg-primary-hover transition-all duration-200 font-semibold shadow-lg hover:shadow-xl active:scale-[0.98]"
-              >
-                Get Started Free →
-              </Link>
-            </div>
-          </div>
-        </section>
-      )}
     </div>
   );
 }

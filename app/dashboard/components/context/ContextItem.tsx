@@ -112,7 +112,7 @@ export default function ContextItem({ context }: { context: Context }) {
 
               setIsDeleting(true);
               try {
-                const result = await deleteContext(context.id as bigint);
+                const result = await deleteContext(context.id);
                 if (result.errorMsg) {
                   toast.error(result.errorMsg);
                 } else {

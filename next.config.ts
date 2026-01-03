@@ -10,6 +10,17 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: configDir,
   },
+  // Also harden webpack-based pipelines (some loaders/plugins still use enhanced-resolve)
+  // so module resolution always includes THIS project's node_modules, even if a parent
+  // directory is incorrectly inferred as the context.
+  webpack: (config) => {
+    config.resolve = config.resolve ?? {};
+    config.resolve.modules = [
+      path.join(configDir, "node_modules"),
+      ...(config.resolve.modules ?? []),
+    ];
+    return config;
+  },
 };
 
 export default nextConfig;

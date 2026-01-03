@@ -23,7 +23,7 @@ export async function getContexts(): Promise<ContextResult> {
   return { contexts: data, errorMsg: null };
 }
 
-export async function deleteContext(id: bigint): Promise<ContextResult> {
+export async function deleteContext(id: number): Promise<ContextResult> {
   const supabase = await createClient();
   const {
     data: { user },
