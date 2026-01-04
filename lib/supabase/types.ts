@@ -18,8 +18,18 @@ export type Session = {
   user_id: string;
   context_id: number;
   notes?: string;
-  intention?: string;
+  intention: string;
   duration: number;
   created_at: string;
-  updated_at: string;
+  updated_at: string | null;
+  finished_at: string | null;
+  reflection_id: number | null;
+};
+
+export type SessionReflection = {
+  id?: number;
+  session_id: number | null;
+  user_id: string | null;
+  reflection: unknown;
+  created_at: string;
 };

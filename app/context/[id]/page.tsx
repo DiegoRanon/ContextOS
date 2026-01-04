@@ -1,14 +1,105 @@
-import { getContext, getContextSessions } from "./actions";
+"use client";
+import { useState, useEffect } from "react";
+import { useParams } from "next/navigation";
+import { getContext, getContextSessions, updateContext } from "./actions";
 import Link from "next/link";
 import Badge from "@/app/components/ui/Badge";
+import Button from "@/app/components/ui/Button";
+import { Context, Session } from "@/lib/supabase/types";
 
-export default async function ContextPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  const { context, errorMsg } = await getContext(id);
+export default function ContextPage() {
+  const params = useParams();
+  const id = params.id as string;
+  const [context, setContext] = useState<Context | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [sessionsError, setSessionsError] = useState<string | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  const focusTime = sessions.reduce(
+    (acc, session) => acc + session.duration,
+    0
+  );
+
+  const numberOfReflections = sessions.reduce(
+    (acc, session) => acc + (session.reflection_id ? 1 : 0),
+    0
+  );
+
+  useEffect(() => {
+    async function loadContext() {
+      const result = await getContext(id);
+      setContext(result.context);
+      setErrorMsg(result.errorMsg);
+      setLoading(false);
+    }
+    loadContext();
+  }, [id]);
+
+  useEffect(() => {
+    async function loadSessions() {
+      if (context?.id) {
+        const result = await getContextSessions(context.id);
+        setSessions(result.sessions ?? []);
+        setSessionsError(result.errorMsg);
+      }
+    }
+    loadSessions();
+  }, [context?.id]);
+
+  const handleEditClick = () => {
+    if (context) {
+      setEditTitle(context.title || "");
+      setEditDescription(context.description || "");
+      setEditError(null);
+      setShowEditModal(true);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editTitle.trim()) {
+      setEditError("Title is required");
+      return;
+    }
+
+    setIsSaving(true);
+    setEditError(null);
+
+    try {
+      const result = await updateContext(id, editTitle, editDescription);
+      if (result.success) {
+        // Update local state
+        setContext({
+          ...context!,
+          title: editTitle.trim(),
+          description: editDescription.trim(),
+        });
+        setShowEditModal(false);
+      } else {
+        setEditError(result.errorMsg || "Failed to update context");
+      }
+    } catch {
+      setEditError("An unexpected error occurred");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-foreground-secondary">Loading context...</p>
+        </div>
+      </div>
+    );
+  }
 
   const formatDuration = (seconds: number) => {
     const s = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
@@ -91,11 +182,6 @@ export default async function ContextPage({
     );
   }
 
-  const sessionsResult = context.id
-    ? await getContextSessions(context.id)
-    : await getContextSessions(id);
-  const sessions = sessionsResult.sessions ?? [];
-
   return (
     <div className="min-h-screen bg-background pt-24 pb-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-5xl mx-auto">
@@ -138,9 +224,30 @@ export default async function ContextPage({
               </svg>
             </div>
             <div className="flex-1">
-              <h1 className="text-4xl font-bold text-foreground mb-3">
-                {context.title}
-              </h1>
+              <div className="flex items-center gap-3 mb-3">
+                <h1 className="text-4xl font-bold text-foreground">
+                  {context.title}
+                </h1>
+                <button
+                  onClick={handleEditClick}
+                  className="p-2 rounded-lg text-foreground-secondary hover:text-foreground hover:bg-surface-secondary transition-all duration-200"
+                  title="Edit context"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                    />
+                  </svg>
+                </button>
+              </div>
               <p className="text-lg text-foreground-secondary leading-relaxed">
                 {context.description || "No description provided"}
               </p>
@@ -164,7 +271,8 @@ export default async function ContextPage({
                 />
               </svg>
               <span>
-                Created {new Date(context.created_at ?? "").toLocaleDateString()}
+                Created{" "}
+                {new Date(context.created_at ?? "").toLocaleDateString()}
               </span>
             </div>
           </div>
@@ -231,11 +339,14 @@ export default async function ContextPage({
             </div>
 
             {/* Sessions List */}
-            <div className="bg-surface rounded-xl border border-border p-6 animate-fadeIn" style={{ animationDelay: "0.1s" }}>
+            <div
+              className="bg-surface rounded-xl border border-border p-6 animate-fadeIn"
+              style={{ animationDelay: "0.1s" }}
+            >
               <h2 className="text-xl font-semibold text-foreground mb-4">
                 Recent Sessions
               </h2>
-              {sessionsResult.errorMsg ? (
+              {sessionsError ? (
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <div className="w-16 h-16 rounded-full bg-error-light flex items-center justify-center mb-4">
                     <svg
@@ -252,9 +363,7 @@ export default async function ContextPage({
                       />
                     </svg>
                   </div>
-                  <p className="text-foreground-secondary">
-                    {sessionsResult.errorMsg}
-                  </p>
+                  <p className="text-foreground-secondary">{sessionsError}</p>
                 </div>
               ) : sessions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-center">
@@ -289,10 +398,15 @@ export default async function ContextPage({
                         ? s.intention
                         : `Session #${sessions.length - idx}`;
 
+                    // Determine the correct link based on session completion status
+                    const sessionLink = s.finished_at
+                      ? `/session/${s.id}/complete`
+                      : `/session/${s.id}`;
+
                     return (
                       <Link
                         key={s.id}
-                        href={`/session/${s.id}`}
+                        href={sessionLink}
                         className="block rounded-xl border border-border hover:border-border-hover hover:bg-surface-secondary transition-all duration-200 p-4"
                       >
                         <div className="flex items-start justify-between gap-4">
@@ -301,6 +415,11 @@ export default async function ContextPage({
                               <h3 className="font-semibold text-foreground truncate">
                                 {title}
                               </h3>
+                              {s.finished_at && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-success/20 text-success">
+                                  Completed
+                                </span>
+                              )}
                             </div>
                             <p className="text-sm text-foreground-secondary truncate">
                               {s.notes && s.notes.trim().length > 0
@@ -324,7 +443,10 @@ export default async function ContextPage({
           {/* Right Column - Stats & Info */}
           <div className="space-y-6">
             {/* Stats */}
-            <div className="bg-surface rounded-xl border border-border p-6 animate-fadeIn" style={{ animationDelay: "0.2s" }}>
+            <div
+              className="bg-surface rounded-xl border border-border p-6 animate-fadeIn"
+              style={{ animationDelay: "0.2s" }}
+            >
               <h3 className="text-lg font-semibold text-foreground mb-4">
                 Statistics
               </h3>
@@ -334,10 +456,9 @@ export default async function ContextPage({
                     <span className="text-sm text-foreground-secondary">
                       Total Sessions
                     </span>
-                    <span className="text-lg font-bold text-foreground">0</span>
-                  </div>
-                  <div className="w-full h-2 bg-surface-secondary rounded-full overflow-hidden">
-                    <div className="h-full bg-primary rounded-full" style={{ width: "0%" }}></div>
+                    <span className="text-lg font-bold text-foreground">
+                      {sessions.length}
+                    </span>
                   </div>
                 </div>
                 <div>
@@ -345,10 +466,9 @@ export default async function ContextPage({
                     <span className="text-sm text-foreground-secondary">
                       Focus Time
                     </span>
-                    <span className="text-lg font-bold text-foreground">0h</span>
-                  </div>
-                  <div className="w-full h-2 bg-surface-secondary rounded-full overflow-hidden">
-                    <div className="h-full bg-accent rounded-full" style={{ width: "0%" }}></div>
+                    <span className="text-lg font-bold text-foreground">
+                      {Math.floor(focusTime / 3600)}h
+                    </span>
                   </div>
                 </div>
                 <div>
@@ -356,17 +476,19 @@ export default async function ContextPage({
                     <span className="text-sm text-foreground-secondary">
                       Reflections
                     </span>
-                    <span className="text-lg font-bold text-foreground">0</span>
-                  </div>
-                  <div className="w-full h-2 bg-surface-secondary rounded-full overflow-hidden">
-                    <div className="h-full bg-success rounded-full" style={{ width: "0%" }}></div>
+                    <span className="text-lg font-bold text-foreground">
+                      {numberOfReflections}
+                    </span>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Activity */}
-            <div className="bg-surface rounded-xl border border-border p-6 animate-fadeIn" style={{ animationDelay: "0.3s" }}>
+            <div
+              className="bg-surface rounded-xl border border-border p-6 animate-fadeIn"
+              style={{ animationDelay: "0.3s" }}
+            >
               <h3 className="text-lg font-semibold text-foreground mb-4">
                 Activity
               </h3>
@@ -387,6 +509,113 @@ export default async function ContextPage({
             </div>
           </div>
         </div>
+
+        {/* Edit Context Modal */}
+        {showEditModal && (
+          <>
+            {/* Backdrop overlay */}
+            <div className="fixed inset-0 bg-black/50 z-40 animate-fadeIn" />
+
+            {/* Modal */}
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
+              <div className="bg-surface rounded-2xl shadow-2xl border border-border p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <h2 className="text-2xl font-bold text-foreground mb-2">
+                  Edit Context
+                </h2>
+                <p className="text-foreground-secondary mb-6">
+                  Update the title and description of your context.
+                </p>
+
+                <div className="space-y-5">
+                  {/* Title Input */}
+                  <div>
+                    <label className="block text-sm font-semibold text-foreground mb-2">
+                      Title <span className="text-error">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      placeholder="Enter context title"
+                      className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200"
+                    />
+                  </div>
+
+                  {/* Description Input */}
+                  <div>
+                    <label className="block text-sm font-semibold text-foreground mb-2">
+                      Description
+                    </label>
+                    <textarea
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      placeholder="Describe your context..."
+                      rows={5}
+                      className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 resize-none"
+                    />
+                  </div>
+
+                  {/* Error Display */}
+                  {editError && (
+                    <div className="flex items-start gap-3 p-4 rounded-lg bg-error-light border border-error/20 animate-fadeIn">
+                      <svg
+                        className="w-5 h-5 text-error shrink-0 mt-0.5"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                      <div>
+                        <p className="text-sm font-medium text-error">
+                          {editError}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                    <Button
+                      onClick={handleSaveEdit}
+                      variant="primary"
+                      size="lg"
+                      isLoading={isSaving}
+                      className="flex-1"
+                    >
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                      Save Changes
+                    </Button>
+                    <Button
+                      onClick={() => setShowEditModal(false)}
+                      variant="outline"
+                      size="lg"
+                      disabled={isSaving}
+                      className="flex-1"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

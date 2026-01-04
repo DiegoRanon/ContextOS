@@ -5,6 +5,18 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { useState } from "react";
 
+function formatDateDMY(dateInput: string | null | undefined) {
+  if (!dateInput) return "—";
+  const d = new Date(dateInput);
+  if (Number.isNaN(d.getTime())) return "—";
+
+  // Use UTC pieces so rendering is deterministic across server/client timezones/locales.
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const year = String(d.getUTCFullYear());
+  return `${day}/${month}/${year}`;
+}
+
 export default function ContextItem({ context }: { context: Context }) {
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -71,7 +83,7 @@ export default function ContextItem({ context }: { context: Context }) {
                   d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
                 />
               </svg>
-              <span>Created {new Date(context.created_at ?? "").toLocaleDateString()}</span>
+              <span>Created {formatDateDMY(context.created_at)}</span>
             </div>
           </div>
         </div>

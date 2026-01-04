@@ -20,6 +20,71 @@ export async function getSession(id: string): Promise<SessionResult> {
   return { session: data, errorMsg: null };
 }
 
+export type ReflectionData = {
+  whatWentWell: string;
+  whatBlocked: string;
+  whatNext: string;
+};
+
+export async function endSessionWithReflection(
+  sessionId: string,
+  notes: string,
+  duration: number,
+  reflection: ReflectionData
+): Promise<SessionResult> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user?.id) return { session: null, errorMsg: "Unauthorized" };
+
+  console.log("Creating reflection for session:", sessionId);
+
+  // Create session_reflection record
+  const { data: reflectionRecord, error: reflectionError } = await supabase
+    .from("session_reflection")
+    .insert({
+      session_id: Number(sessionId),
+      user_id: user.id,
+      reflection: reflection,
+    })
+    .select()
+    .single();
+
+  if (reflectionError) {
+    console.error("Reflection creation error:", reflectionError);
+    return { session: null, errorMsg: reflectionError.message };
+  }
+
+  console.log("Reflection created:", reflectionRecord.id);
+
+  // Update session with finished_at and reflection_id
+  const { data, error } = await supabase
+    .from("session")
+    .update({
+      notes,
+      duration,
+      finished_at: new Date().toISOString(),
+      reflection_id: reflectionRecord.id,
+    })
+    .eq("id", sessionId)
+    .eq("user_id", user.id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Session update error:", error);
+    return { session: null, errorMsg: error.message };
+  }
+
+  console.log("Session updated, redirecting to complete page");
+
+  revalidatePath(`/session/${sessionId}/complete`);
+  revalidatePath(`/context/${data.context_id}`);
+  redirect(`/session/${sessionId}/complete`);
+}
+
 export async function endSession(
   id: string,
   notes: string,
@@ -34,16 +99,13 @@ export async function endSession(
 
   const { data, error } = await supabase
     .from("session")
-    .update({ notes, duration })
+    .update({ notes, duration, finished_at: new Date().toISOString() })
     .eq("id", id)
     .eq("user_id", user.id)
     .select()
     .single();
 
   if (error) return { session: null, errorMsg: error.message };
-
-  revalidatePath(`/context/${data.context_id}`);
-  redirect(`/context/${data.context_id}`);
   return { session: data, errorMsg: null };
 }
 

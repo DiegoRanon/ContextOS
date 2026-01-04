@@ -1,11 +1,12 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   getSession,
-  endSession,
+  endSessionWithReflection,
   saveSessionDuration,
   saveSessionNotes,
+  type ReflectionData,
 } from "./actions";
 import Button from "@/app/components/ui/Button";
 import Link from "next/link";
@@ -13,6 +14,7 @@ import { Session } from "@/lib/supabase/types";
 
 export default function ActiveSessionPage() {
   const params = useParams();
+  const router = useRouter();
   const sessionId = params.id as string;
 
   const [session, setSession] = useState<Session | null>(null);
@@ -23,6 +25,11 @@ export default function ActiveSessionPage() {
   const [notes, setNotes] = useState("");
   const [isEnding, setIsEnding] = useState(false);
   const [showReflection, setShowReflection] = useState(false);
+  const [reflectionData, setReflectionData] = useState<ReflectionData>({
+    whatWentWell: "",
+    whatBlocked: "",
+    whatNext: "",
+  });
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const elapsedRef = useRef(0);
   const lastSavedRef = useRef<number | null>(null);
@@ -35,6 +42,11 @@ export default function ActiveSessionPage() {
       if (result.errorMsg) {
         setError(result.errorMsg);
       } else if (result.session) {
+        // Redirect to complete page if session is already finished
+        if (result.session.finished_at) {
+          router.push(`/session/${sessionId}/complete`);
+          return;
+        }
         setSession(result.session);
         setNotes(result.session.notes || "");
         lastNotesSavedRef.current = result.session.notes || "";
@@ -44,7 +56,7 @@ export default function ActiveSessionPage() {
       setLoading(false);
     }
     loadSession();
-  }, [sessionId]);
+  }, [sessionId, router]);
 
   useEffect(() => {
     elapsedRef.current = elapsedTime;
@@ -151,13 +163,24 @@ export default function ActiveSessionPage() {
     setShowReflection(true);
   };
 
-  const handleSaveReflection = async () => {
+  const handleCompleteSession = async () => {
     setIsEnding(true);
+    setError(null);
     try {
-      await endSession(sessionId, notes, elapsedTime);
-      // Redirect happens in the action
-    } catch {
-      setError("Failed to end session");
+      await endSessionWithReflection(
+        sessionId,
+        notes,
+        elapsedTime,
+        reflectionData
+      );
+      // Redirect happens in the action (throws to trigger navigation)
+    } catch (err) {
+      // Check if this is a Next.js redirect (which is expected)
+      if (err && typeof err === "object" && "digest" in err) {
+        throw err; // Re-throw redirect errors
+      }
+      console.error("Error completing session:", err);
+      setError("Failed to end session. Please try again.");
       setIsEnding(false);
     }
   };
@@ -456,120 +479,188 @@ export default function ActiveSessionPage() {
 
         {/* Reflection Modal */}
         {showReflection && (
-          <div className="bg-surface rounded-2xl shadow-xl border border-border p-8 animate-fadeIn">
-            <h2 className="text-2xl font-bold text-foreground mb-4">
-              Session Complete
-            </h2>
-            <p className="text-foreground-secondary mb-6">
-              Your session has ended. Review your notes and complete the
-              session.
-            </p>
+          <>
+            {/* Backdrop overlay */}
+            <div className="fixed inset-0 bg-black/50 z-40 animate-fadeIn" />
 
-            <div className="space-y-6">
-              {/* Session Summary */}
-              <div className="bg-surface-secondary rounded-lg p-4 border border-border">
-                <div className="grid grid-cols-2 gap-4 text-center">
-                  <div>
-                    <p className="text-sm text-foreground-secondary mb-1">
-                      Duration
-                    </p>
-                    <p className="text-2xl font-bold text-foreground">
-                      {formatTime(elapsedTime)}
-                    </p>
+            {/* Modal */}
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
+              <div className="bg-surface rounded-2xl shadow-2xl border border-border p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+                <h2 className="text-2xl font-bold text-foreground mb-2">
+                  Reflect on Your Session
+                </h2>
+                <p className="text-foreground-secondary mb-6">
+                  Take a moment to reflect before completing the session. Your
+                  insights help track your progress.
+                </p>
+
+                <div className="space-y-6">
+                  {/* Session Summary */}
+                  <div className="bg-surface-secondary rounded-lg p-4 border border-border">
+                    <div className="grid grid-cols-2 gap-4 text-center">
+                      <div>
+                        <p className="text-sm text-foreground-secondary mb-1">
+                          Duration
+                        </p>
+                        <p className="text-2xl font-bold text-foreground">
+                          {formatTime(elapsedTime)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-foreground-secondary mb-1">
+                          Status
+                        </p>
+                        <p className="text-2xl font-bold text-success">
+                          Completed
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-foreground-secondary mb-1">
-                      Status
-                    </p>
-                    <p className="text-2xl font-bold text-success">Completed</p>
+
+                  {/* Reflection Questions */}
+                  <div className="space-y-5">
+                    {/* Question 1 */}
+                    <div>
+                      <label className="flex items-center gap-2 text-sm font-semibold text-foreground mb-2">
+                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-success/20 text-success text-xs font-bold">
+                          1
+                        </span>
+                        What went well?
+                      </label>
+                      <textarea
+                        value={reflectionData.whatWentWell}
+                        onChange={(e) =>
+                          setReflectionData({
+                            ...reflectionData,
+                            whatWentWell: e.target.value,
+                          })
+                        }
+                        placeholder="What accomplishments or positive moments did you experience?"
+                        rows={3}
+                        className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-success focus:border-transparent transition-all duration-200 resize-none"
+                      />
+                    </div>
+
+                    {/* Question 2 */}
+                    <div>
+                      <label className="flex items-center gap-2 text-sm font-semibold text-foreground mb-2">
+                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-error/20 text-error text-xs font-bold">
+                          2
+                        </span>
+                        What blocked you?
+                      </label>
+                      <textarea
+                        value={reflectionData.whatBlocked}
+                        onChange={(e) =>
+                          setReflectionData({
+                            ...reflectionData,
+                            whatBlocked: e.target.value,
+                          })
+                        }
+                        placeholder="What challenges, obstacles, or distractions did you encounter?"
+                        rows={3}
+                        className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-error focus:border-transparent transition-all duration-200 resize-none"
+                      />
+                    </div>
+
+                    {/* Question 3 */}
+                    <div>
+                      <label className="flex items-center gap-2 text-sm font-semibold text-foreground mb-2">
+                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/20 text-primary text-xs font-bold">
+                          3
+                        </span>
+                        What should you do next?
+                      </label>
+                      <textarea
+                        value={reflectionData.whatNext}
+                        onChange={(e) =>
+                          setReflectionData({
+                            ...reflectionData,
+                            whatNext: e.target.value,
+                          })
+                        }
+                        placeholder="What are your next steps or action items?"
+                        rows={3}
+                        className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 resize-none"
+                      />
+                    </div>
                   </div>
+
+                  {/* Session Notes Preview */}
+                  {notes && (
+                    <div className="border-t border-border pt-5">
+                      <label className="block text-sm font-medium text-foreground mb-2">
+                        Session Notes
+                      </label>
+                      <div className="px-4 py-3 bg-surface-secondary border border-border rounded-lg text-foreground-secondary text-sm max-h-32 overflow-y-auto whitespace-pre-wrap font-mono">
+                        {notes}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                    <Button
+                      onClick={handleCompleteSession}
+                      variant="primary"
+                      size="lg"
+                      isLoading={isEnding}
+                      className="flex-1"
+                    >
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                      Complete Session
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setShowReflection(false);
+                        setIsPaused(false);
+                      }}
+                      variant="outline"
+                      size="lg"
+                      disabled={isEnding}
+                      className="flex-1"
+                    >
+                      Continue Session
+                    </Button>
+                  </div>
+
+                  {/* Error Display */}
+                  {error && (
+                    <div className="flex items-start gap-3 p-4 rounded-lg bg-error-light border border-error/20 animate-fadeIn">
+                      <svg
+                        className="w-5 h-5 text-error shrink-0 mt-0.5"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                      <div>
+                        <p className="text-sm font-medium text-error">
+                          {error}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-
-              {/* Show Intention if exists */}
-              {session?.intention && (
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Your Intention
-                  </label>
-                  <div className="px-4 py-3 bg-primary-light border border-primary/20 rounded-lg text-foreground">
-                    {session.intention}
-                  </div>
-                </div>
-              )}
-
-              {/* Show Notes */}
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Session Notes
-                </label>
-                {notes ? (
-                  <div className="px-4 py-3 bg-surface-secondary border border-border rounded-lg text-foreground whitespace-pre-wrap font-mono text-sm">
-                    {notes}
-                  </div>
-                ) : (
-                  <p className="text-foreground-muted italic">
-                    No notes taken during this session.
-                  </p>
-                )}
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                <Button
-                  onClick={handleSaveReflection}
-                  variant="primary"
-                  size="lg"
-                  isLoading={isEnding}
-                  className="flex-1"
-                >
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                  Complete Session
-                </Button>
-                <Button
-                  onClick={() => {
-                    setShowReflection(false);
-                    setIsPaused(false);
-                  }}
-                  variant="outline"
-                  size="lg"
-                  disabled={isEnding}
-                  className="flex-1"
-                >
-                  Continue Session
-                </Button>
-              </div>
-              {error && (
-                <div className="flex items-start gap-3 p-4 rounded-lg bg-error-light border border-error/20 animate-fadeIn">
-                  <svg
-                    className="w-5 h-5 text-error shrink-0 mt-0.5"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                  <div>
-                    <p className="text-sm font-medium text-error">{error}</p>
-                  </div>
-                </div>
-              )}
             </div>
-          </div>
+          </>
         )}
       </div>
     </div>

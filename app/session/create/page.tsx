@@ -62,11 +62,17 @@ function CreateSessionPageInner() {
           <form
             action={async (fd: FormData) => {
               setError(null);
+              const intention = String(fd.get("intention") ?? "").trim();
+              if (!intention) {
+                setError("Session intention is required.");
+                return;
+              }
+
               setIsLoading(true);
               try {
                 const newSession = {
                   context_id: Number(contextId),
-                  intention: String(fd.get("intention") ?? ""),
+                  intention,
                   notes: "",
                   duration: 0,
                 };
@@ -83,7 +89,7 @@ function CreateSessionPageInner() {
           >
             <div>
               <label className="block text-sm font-medium text-foreground-secondary mb-2">
-                Session Intention (Optional)
+                Session Intention
               </label>
               <div className="relative">
                 <div className="absolute left-3 top-3 text-foreground-muted">
@@ -105,6 +111,7 @@ function CreateSessionPageInner() {
                   name="intention"
                   placeholder="What do you plan to work on in this session?"
                   rows={4}
+                  required
                   className="w-full pl-11 pr-4 py-3 bg-surface border border-border rounded-lg text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 resize-none"
                 />
               </div>

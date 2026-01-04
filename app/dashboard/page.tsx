@@ -1,10 +1,24 @@
-import { getContexts } from "./actions";
+import { getContexts, getSessions } from "./actions";
 import ContextList from "./components/context/ContextList";
 import Link from "next/link";
 
 export default async function Dashboard() {
   const contextsResult = await getContexts();
-  
+  const sessionsResult = await getSessions();
+
+  const sessionsThisWeek = sessionsResult.sessions?.filter((session) => {
+    return (
+      session.updated_at &&
+      new Date(session.updated_at) >=
+        new Date(new Date().setDate(new Date().getDate() - 7))
+    );
+  });
+
+  const focusTimeSeconds =
+    sessionsResult.sessions?.reduce((acc, session) => {
+      return acc + (session.duration ?? 0);
+    }, 0) ?? 0;
+
   return (
     <div className="min-h-screen bg-background pt-24 pb-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
@@ -88,7 +102,9 @@ export default async function Dashboard() {
                   </svg>
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-foreground">0</p>
+                  <p className="text-2xl font-bold text-foreground">
+                    {sessionsThisWeek?.length || 0}
+                  </p>
                   <p className="text-sm text-foreground-secondary">
                     Sessions This Week
                   </p>
@@ -114,7 +130,9 @@ export default async function Dashboard() {
                   </svg>
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-foreground">0h</p>
+                  <p className="text-2xl font-bold text-foreground">
+                    {Math.floor(focusTimeSeconds / 3600)}h
+                  </p>
                   <p className="text-sm text-foreground-secondary">
                     Focus Time
                   </p>
