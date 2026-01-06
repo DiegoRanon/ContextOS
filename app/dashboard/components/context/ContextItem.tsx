@@ -1,9 +1,9 @@
 "use client";
-import { Context } from "@/lib/supabase/types";
+import { Context, Session } from "@/lib/supabase/types";
 import { deleteContext } from "../../actions";
 import { toast } from "sonner";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 function formatDateDMY(dateInput: string | null | undefined) {
   if (!dateInput) return "—";
@@ -19,7 +19,21 @@ function formatDateDMY(dateInput: string | null | undefined) {
 
 export default function ContextItem({ context }: { context: Context }) {
   const [isDeleting, setIsDeleting] = useState(false);
-
+  const [numberOfSessions, setNumberOfSessions] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!context.id) return;
+    fetch(`/api/contexts/${context.id}/sessions-count`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.error) {
+          setError(data.error);
+          return;
+        }
+        setNumberOfSessions(data.numberOfSessions);
+        setError(null);
+      });
+  }, [context.id]);
   return (
     <div className="bg-surface rounded-xl border border-border p-6 hover:shadow-lg hover:border-border-hover transition-all duration-300 group">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
@@ -67,7 +81,8 @@ export default function ContextItem({ context }: { context: Context }) {
                   d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
               </svg>
-              <span>0 sessions</span>
+              <span>{numberOfSessions} sessions</span>
+              {error && <span className="text-error text-sm">{error}</span>}
             </div>
             <div className="flex items-center gap-1.5">
               <svg
@@ -116,9 +131,13 @@ export default function ContextItem({ context }: { context: Context }) {
                 toast.error("Missing context id");
                 return;
               }
-              
+
               // Confirm deletion
-              if (!confirm(`Are you sure you want to delete "${context.title}"? This action cannot be undone.`)) {
+              if (
+                !confirm(
+                  `Are you sure you want to delete "${context.title}"? This action cannot be undone.`
+                )
+              ) {
                 return;
               }
 

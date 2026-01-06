@@ -13,6 +13,30 @@ export type SessionsResult = {
   errorMsg: string | null;
 };
 
+export type NumberOfSessionsResult = {
+  numberOfSessions: number;
+  errorMsg: string | null;
+};
+
+export async function getNumberOfSessions(
+  contextId: number
+): Promise<NumberOfSessionsResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user?.id) return { numberOfSessions: 0, errorMsg: "Unauthorized" };
+  const { data, error } = await supabase
+    .from("session")
+    .select("*")
+    .eq("user_id", user.id)
+    .eq("context_id", contextId);
+  return {
+    numberOfSessions: data?.length ?? 0,
+    errorMsg: error ? error.message : null,
+  };
+}
+
 export async function getContexts(): Promise<ContextResult> {
   const supabase = await createClient();
   const {
@@ -23,7 +47,7 @@ export async function getContexts(): Promise<ContextResult> {
     .from("context")
     .select("*")
     .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
+    .order("updated_at", { ascending: false });
   if (error) return { contexts: null, errorMsg: error.message };
   return { contexts: data, errorMsg: null };
 }
