@@ -30,11 +30,22 @@ export default function ActiveSessionPage() {
     whatBlocked: "",
     whatNext: "",
   });
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const elapsedRef = useRef(0);
   const lastSavedRef = useRef<number | null>(null);
   const lastNotesSavedRef = useRef<string | null>(null);
   const hydratedFromServerRef = useRef(false);
+  // Clock-based timer refs (avoid background tab throttling drift)
+  const startMsRef = useRef<number | null>(null); // Date.now() when elapsedTime would be 0
+  const pausedAtMsRef = useRef<number | null>(null); // Date.now() when pause started (null when running)
+
+  const getElapsedNow = () => {
+    const start = startMsRef.current;
+    if (start === null) return elapsedRef.current;
+
+    const now = pausedAtMsRef.current ?? Date.now();
+    return Math.max(0, Math.floor((now - start) / 1000));
+  };
 
   useEffect(() => {
     async function loadSession() {
@@ -50,7 +61,10 @@ export default function ActiveSessionPage() {
         setSession(result.session);
         setNotes(result.session.notes || "");
         lastNotesSavedRef.current = result.session.notes || "";
-        setElapsedTime(result.session.duration ?? 0);
+        const initial = result.session.duration ?? 0;
+        setElapsedTime(initial);
+        startMsRef.current = Date.now() - initial * 1000;
+        pausedAtMsRef.current = null;
         hydratedFromServerRef.current = true;
       }
       setLoading(false);
@@ -62,13 +76,23 @@ export default function ActiveSessionPage() {
     elapsedRef.current = elapsedTime;
   }, [elapsedTime]);
 
-  // Timer
+  // Timer (clock-based; interval only re-renders UI)
   useEffect(() => {
     if (!session || isPaused || showReflection) return;
 
-    timerRef.current = setInterval(() => {
-      setElapsedTime((prev) => prev + 1);
-    }, 1000);
+    // Ensure clock has a baseline even if something resets elapsedTime
+    if (startMsRef.current === null) {
+      startMsRef.current = Date.now() - elapsedRef.current * 1000;
+    }
+
+    const sync = () => {
+      const next = getElapsedNow();
+      setElapsedTime((prev: number) => (prev === next ? prev : next));
+    };
+
+    // Immediate sync + periodic UI refresh
+    sync();
+    timerRef.current = setInterval(sync, 1000);
 
     return () => {
       if (timerRef.current) {
@@ -78,14 +102,15 @@ export default function ActiveSessionPage() {
     };
   }, [session, isPaused, showReflection]);
 
-  // Save progress every 30 seconds while running
+  // Save progress approximately every 30 seconds while running (handles big background jumps)
   useEffect(() => {
     if (!session) return;
     if (!hydratedFromServerRef.current) return;
     if (showReflection) return;
     if (elapsedTime <= 0) return;
-    if (elapsedTime % 30 !== 0) return;
-    if (lastSavedRef.current === elapsedTime) return;
+
+    const last = lastSavedRef.current ?? 0;
+    if (elapsedTime - last < 30) return;
 
     lastSavedRef.current = elapsedTime;
     void saveSessionDuration(sessionId, elapsedTime);
@@ -110,12 +135,15 @@ export default function ActiveSessionPage() {
 
     const onVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
-        saveWithBeacon(elapsedRef.current);
+        saveWithBeacon(getElapsedNow());
+      } else {
+        // When returning to the tab, immediately sync UI to wall-clock elapsed.
+        setElapsedTime(getElapsedNow());
       }
     };
 
     const onPageHide = () => {
-      saveWithBeacon(elapsedRef.current);
+      saveWithBeacon(getElapsedNow());
     };
 
     document.addEventListener("visibilitychange", onVisibilityChange);
@@ -125,7 +153,7 @@ export default function ActiveSessionPage() {
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("pagehide", onPageHide);
 
-      const current = elapsedRef.current;
+      const current = getElapsedNow();
       if (lastSavedRef.current !== current) {
         lastSavedRef.current = current;
         void saveSessionDuration(sessionId, current);
@@ -143,7 +171,22 @@ export default function ActiveSessionPage() {
   };
 
   const handlePauseResume = () => {
-    setIsPaused(!isPaused);
+    if (!session) return;
+
+    if (isPaused) {
+      // Resume: shift the start so elapsed doesn't include paused time
+      if (pausedAtMsRef.current !== null && startMsRef.current !== null) {
+        startMsRef.current += Date.now() - pausedAtMsRef.current;
+      }
+      pausedAtMsRef.current = null;
+      setIsPaused(false);
+      setElapsedTime(getElapsedNow());
+      return;
+    }
+
+    // Pause: freeze wall-clock elapsed at pause moment
+    if (pausedAtMsRef.current === null) pausedAtMsRef.current = Date.now();
+    setIsPaused(true);
   };
 
   const handleNotesBlur = () => {
@@ -160,6 +203,8 @@ export default function ActiveSessionPage() {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    // Freeze elapsed while reflection modal is open (unless already paused)
+    if (pausedAtMsRef.current === null) pausedAtMsRef.current = Date.now();
     setShowReflection(true);
   };
 
@@ -625,7 +670,17 @@ export default function ActiveSessionPage() {
                     <Button
                       onClick={() => {
                         setShowReflection(false);
+                        // Resume from reflection pause
+                        if (
+                          pausedAtMsRef.current !== null &&
+                          startMsRef.current !== null
+                        ) {
+                          startMsRef.current +=
+                            Date.now() - pausedAtMsRef.current;
+                        }
+                        pausedAtMsRef.current = null;
                         setIsPaused(false);
+                        setElapsedTime(getElapsedNow());
                       }}
                       variant="outline"
                       size="lg"
