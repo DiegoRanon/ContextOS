@@ -40,6 +40,18 @@ export async function POST(
     .select()
     .single();
 
+    const { data: context, error: contextError } = await supabase
+    .from("context")
+    .update({ updated_at: new Date().toISOString() })
+    .eq("id", data.context_id)
+    .eq("user_id", user.id)
+    .select()
+    .single();
+
+  if (contextError) {
+    return NextResponse.json({ error: contextError.message }, { status: 400 });
+  }
+
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
