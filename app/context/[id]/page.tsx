@@ -7,6 +7,8 @@ import Badge from "@/app/components/ui/Badge";
 import { Context, Session } from "@/lib/supabase/types";
 import EditContextModal from "./components/EditContextModal";
 import AiInsightsModal from "./components/AiInsightsModal";
+import AiSuggestionsTestModal from "./components/AiSuggestionsTestModal";
+import AiInsightsReportModal from "./components/AiInsightsReportModal";
 import { toast } from "sonner";
 
 export default function ContextPage() {
@@ -28,6 +30,20 @@ export default function ContextPage() {
   const [aiInsightChoice, setAiInsightChoice] = useState<
     "sessions" | "context" | null
   >(null);
+  const [aiReport, setAiReport] = useState<{
+    fullReport: string;
+    reportType?: string | null;
+    created_at?: string | null;
+  } | null>(null);
+  const [showAiReportModal, setShowAiReportModal] = useState(false);
+  const isDev = process.env.NODE_ENV === "development";
+  const [showAiTestModal, setShowAiTestModal] = useState(false);
+  const [aiTestError, setAiTestError] = useState<string | null>(null);
+  const [aiTestResponse, setAiTestResponse] = useState<{
+    suggestion: string;
+    input: unknown;
+  } | null>(null);
+  const [isAiTestLoading, setIsAiTestLoading] = useState(false);
 
   const focusTime = sessions.reduce(
     (acc, session) => acc + session.duration,
@@ -76,19 +92,111 @@ export default function ContextPage() {
     setAiInsightChoice(null);
   };
 
+  const handleAiTestClick = () => {
+    setShowAiTestModal(true);
+    setAiTestError(null);
+    setAiTestResponse(null);
+  };
+
+  const handleRunAiTest = async () => {
+    setIsAiTestLoading(true);
+    setAiTestError(null);
+    setAiTestResponse(null);
+
+    try {
+      const response = await fetch(`/api/context/${id}/ai-suggestions`, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+        },
+        credentials: "include",
+      });
+
+      const contentType = response.headers.get("content-type") || "";
+      const body = contentType.includes("application/json")
+        ? await response.json()
+        : await response.text();
+
+      if (!response.ok) {
+        const message =
+          typeof body === "string"
+            ? body
+            : body?.error || "Failed to generate suggestions";
+        setAiTestError(message);
+        return;
+      }
+
+      if (typeof body === "string") {
+        setAiTestError("Unexpected response format.");
+        return;
+      }
+
+      setAiTestResponse({
+        suggestion: body?.suggestion ?? "",
+        input: body?.input ?? null,
+      });
+    } catch (error) {
+      setAiTestError(
+        error instanceof Error ? error.message : "Unexpected error"
+      );
+    } finally {
+      setIsAiTestLoading(false);
+    }
+  };
+
   const handleSaveAiInsights = async (choice: "sessions" | "context") => {
     setIsAiInsightsSaving(true);
     setAiInsightsError(null);
 
     try {
-      // Placeholder until the actual insights generation flow is implemented.
-      toast.message("AI Insights", {
-        description:
-          choice === "sessions"
-            ? "Coming soon: suggestions based on your last 3 sessions."
-            : "Coming soon: insights based on your context.",
+      if (choice !== "sessions") {
+        toast.message("AI Insights", {
+          description: "Only session-based insights are available right now.",
+        });
+        setShowAiInsightsModal(false);
+        return;
+      }
+
+      const response = await fetch(`/api/context/${id}/ai-suggestions`, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+        },
+        credentials: "include",
+      });
+
+      const contentType = response.headers.get("content-type") || "";
+      const body = contentType.includes("application/json")
+        ? await response.json()
+        : await response.text();
+
+      if (!response.ok) {
+        const message =
+          typeof body === "string"
+            ? body
+            : body?.error || "Failed to generate insights";
+        setAiInsightsError(message);
+        return;
+      }
+
+      if (typeof body === "string") {
+        setAiInsightsError("Unexpected response format.");
+        return;
+      }
+
+      const report = body?.report;
+      if (!report?.fullReport) {
+        setAiInsightsError("No report returned.");
+        return;
+      }
+
+      setAiReport({
+        fullReport: report.fullReport,
+        reportType: report.reportType,
+        created_at: report.created_at,
       });
       setShowAiInsightsModal(false);
+      setShowAiReportModal(true);
     } catch {
       setAiInsightsError("An unexpected error occurred");
     } finally {
@@ -373,6 +481,36 @@ export default function ContextPage() {
                     </p>
                   </div>
                 </button>
+                {isDev && (
+                  <button
+                    onClick={handleAiTestClick}
+                    className="flex items-center gap-3 p-4 rounded-lg border-2 border-dashed border-border hover:border-border-hover hover:bg-surface-secondary transition-all duration-200 group text-left"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-surface-secondary flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <svg
+                        className="w-5 h-5 text-foreground"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 12h6m-3-3v6m7 2a2 2 0 01-2 2H7a2 2 0 01-2-2V7a2 2 0 012-2h5l5 5v7z"
+                        />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-foreground">
+                        Test AI API
+                      </p>
+                      <p className="text-sm text-foreground-secondary">
+                        Preview suggestions output
+                      </p>
+                    </div>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -558,6 +696,24 @@ export default function ContextPage() {
           onSave={handleSaveAiInsights}
           onCancel={() => setShowAiInsightsModal(false)}
         />
+
+        <AiInsightsReportModal
+          open={showAiReportModal}
+          report={aiReport}
+          onClose={() => setShowAiReportModal(false)}
+        />
+
+        {/* AI Suggestions Test Modal */}
+        {isDev && (
+          <AiSuggestionsTestModal
+            open={showAiTestModal}
+            isLoading={isAiTestLoading}
+            error={aiTestError}
+            response={aiTestResponse}
+            onRun={handleRunAiTest}
+            onClose={() => setShowAiTestModal(false)}
+          />
+        )}
 
         {/* Edit Context Modal */}
         <EditContextModal

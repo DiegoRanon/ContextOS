@@ -33,3 +33,12 @@ export type SessionReflection = {
   reflection: unknown;
   created_at: string;
 };
+
+export type ContextReflection = {
+  id?: number;
+  context_id: number | null;
+  user_id: string | null;
+  reportType: string | null;
+  fullReport: string | null;
+  created_at: string;
+};
