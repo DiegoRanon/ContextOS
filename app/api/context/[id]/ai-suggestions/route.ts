@@ -110,13 +110,13 @@ export async function POST(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+        model: "gpt-4o",
         temperature: 0.3,
         messages: [
           {
             role: "system",
             content:
-              "You are a focused work assistant. Summarize the last 3 sessions and provide concise, actionable next-step suggestions.",
+              "You are a focused work assistant. Summarize the last 3 sessions and provide concise, actionable next-step suggestions based on the user's goals and context.",
           },
           {
             role: "user",
